@@ -1,4 +1,207 @@
-/* Customized style */
-.content-wrap {
-    width: 100%;
+/* Fix user-agent */
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  font-weight: 300;
+  -webkit-font-smoothing: antialiased;
+}
+
+html, input {
+  font-family:
+    "HelveticaNeue-Light",
+    "Helvetica Neue Light",
+    "Helvetica Neue",
+    Helvetica,
+    Arial,
+    "Lucida Grande",
+    sans-serif;
+}
+
+html, body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+/* Pages */
+.wrap-pages {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+}
+
+.wrap-page {
+  height: 100%;
+  position: absolute;
+  width: 100%;
+}
+
+ul {
+  list-style: none;
+  word-wrap: break-word;
+}
+
+/* Login Page */
+
+.login.wrap-page {
+  background-color: #000;
+}
+
+.login.wrap-page .form {
+  height: 100px;
+  margin-top: -100px;
+  position: absolute;
+
+  text-align: center;
+  top: 50%;
+  width: 100%;
+}
+
+.login.wrap-page .form .usernameInput {
+  background-color: transparent;
+  border: none;
+  border-bottom: 2px solid #fff;
+  outline: none;
+  padding-bottom: 15px;
+  text-align: center;
+  width: 400px;
+}
+
+.login.wrap-page .title {
+  font-size: 200%;
+}
+
+.login.wrap-page .usernameInput {
+  font-size: 200%;
+  letter-spacing: 3px;
+}
+
+.login.wrap-page .title, .login.wrap-page .usernameInput {
+  color: #fff;
+  font-weight: 100;
+}
+
+.wrap-btn {
+  padding-top: 22px;
+}
+
+.btn-login {
+  min-width: 90px;
+  width: 120px;
+}
+
+/* Chat page */
+
+.chat.wrap-page {
+  display: none;
+}
+
+.wrap-msg {
+  padding-top:30px;
+  padding-left:45px;
+}
+
+.wrap-msg-line {
+  padding-top:20px;
+  padding-left:43px;
+}
+
+.wrap-msg-line-1 {
+  margin-left:-42px;
+}
+
+.wrap-leave {
+  margin-right: 20px;
+}
+
+.wrap-msg-scroll {
+  overflow: auto; 
+  max-height: 150px;
+}
+
+.inputMessage {
+  font-size: 100%;
+}
+
+.log {
+  color: gray;
+  font-size: 70%;
+  margin: 5px;
+  text-align: center;
+}
+
+/* Messages */
+.list-board {
+  margin:auto;
+  width:350px;
+}
+
+.hint-board {
+  padding-top:20px;
+}
+
+.msg-board {
+  max-width: 85%;
+}
+
+.messages {
+  font-size: 150%;
+  height: 100%;
+  margin: 0;
+  overflow-y: scroll;
+  padding: 10px 20px 10px 20px;
+}
+
+.message.typing .messageBody {
+  color: gray;
+}
+
+.contact-name {
+  padding-left: 20px;
+  font-size: 200%;
+}
+
+.live-chat {
+  font-size: 150%;
+  color: #0b1b35;
+}
+
+.live-chat-stream {
+  padding-top:30px;
+}
+
+.msg-color-purple {
+  color: #f442f1;
+}
+
+.msg-color-blue {
+  color: #0b1b35;
+}
+
+.cbutton-call {
+}
+
+.username {
+  font-weight: 700;
+  overflow: hidden;
+  padding-right: 15px;
+  text-align: right;
+}
+
+/* Input */
+
+.inputMessage {
+  border: 10px solid #000;
+  bottom: 0;
+  height: 60px;
+  left: 0;
+  outline: none;
+  padding-left: 10px;
+  position: absolute;
+  right: 0;
+  width: 100%;
 }
