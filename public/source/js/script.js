@@ -1,26 +1,151 @@
-// global map that stores username and peer id
-var map = {};
-var count = 0;
+var HOST_IP = "192.168.1.79";
+var PEER_PORT = 9000;
 
-function getLongPeerId(key) {
-    return map[key];
+var userId, peerId, peer,
+    token, peerToken;
+var conn;
+
+/**
+ * Starts the request of the camera and microphone
+ *
+ * @param {Object} callbacks
+ */
+function requestLocalVideo(callbacks) {
+    // Monkeypatch for crossbrowser geusermedia
+    navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+    // Request audio and video
+    navigator.getUserMedia({ audio: false, video: true }, callbacks.success , callbacks.error);
+}
+
+/**
+ * Handle the providen stream (video & audio) to the desired video element
+ *
+ * @param {*} stream
+ * @param {*} element_id
+ */
+function onReceiveStream(stream, element_id) {
+    // Retrieve the video element according to the desired
+    var video = document.getElementById(element_id);
+    // Set the given stream as the video source
+    if (video) {
+        video.src = window.URL.createObjectURL(stream);
+    }
+
+    // Store a global reference of the stream
+    window.peer_stream = stream;
+}
+
+/**
+ * Appends the received and sent message to the listview
+ *
+ * @param {Object} data
+ */
+function handleMessage(data) {
+    var orientation = "text-left";
+    var msgcolor = "msg-color-blue";
+
+    // If the message is yours, set text to right
+    if(data.from == userId) {
+        orientation = "text-right";
+        msgcolor = "msg-color-purple";
+    }
+
+    var messageHTML =  '<div class="list-group-item msg-board">';
+        messageHTML += '<h4 class="list-group-item-heading ' + msgcolor + '">' + data.from +'</h4>';
+        messageHTML += '<p class="list-group-item-text">'+ data.text +'</p>';
+        messageHTML += '</div><br>';
+
+    $('#messages').append(messageHTML);
+    $('#messages').scrollTop($('#messages')[0].scrollHeight);
+}
+
+function handleCall(userId, peerId, state) {
+    //console.log(peerId + '->' + state);
+    if (state === '1' && peerId !== userId) {
+        console.log('Calling to ' + peerId);
+        //if (peerToken === undefined || peerToken == null) {
+        getToken(peerId, function(token) {
+            console.log('peerId/peerToken: ' + peerId + '->' + token);
+            conn = peer.connect(token, {
+                metadata : { 'userId': userId }
+            });
+            conn.on('data', handleMessage);
+
+            console.log(peer);
+            var call = peer.call(token, window.localStream);
+
+            call.on('stream', function (stream) {
+                window.peer_stream = stream;
+                onReceiveStream(stream, 'peer-camera');
+            });
+
+            $('#room').addClass('hidden');
+            $('#chat').removeClass('hidden');
+        });
+    }
+}
+
+function showRow(userId, peerId, state) {
+    var callcolor = (state === '1' ? 'green' : 'red');
+    var listHTML = '<div class="list-board"><span class="cbutton-call" onClick="handleCall(\'' + userId + '\', \'' + peerId + '\', \'' + state + '\')"><i class="fa fa-2x fa-phone-square" style="color:' + callcolor + '"></i></span>';
+        listHTML += '<span class="contact-name">' + peerId + '&nbsp;&nbsp;&#x2729;&#x2729;&#x2729;主任医师</span></div>';
+    $('#contactlist').append(listHTML);
+}
+
+function updateContactList(callback) {
+    $.ajax({
+        type: "GET",
+        url: '/api/userstate',
+        dataType: "json",
+        success: function (res) {
+            callback(res);
+        },
+        error: function () {}
+    });
+}
+
+// get random token by userid
+function getToken(userId, callback) {
+    //console.log('getToken called.');
+    $.ajax({
+        type: "GET",
+        url: "/api/users/" + userId,
+        success: function (token) {
+            //console.log('getToken: ' + JSON.stringify(token));
+            callback(token);
+        },
+        error: function () {}
+    });
+}
+
+// leave chat room
+function leave(userId) {
+    //console.log('leave called.');
+    var dataSend = {userId: userId};
+    $.ajax({
+        type: "POST",
+        url: "/api/leave",
+        dataType: 'json',
+        data: dataSend,
+        success: function (res) {
+            //console.log(userId + ' left.');
+        },
+        error: function () {}
+    });
 }
 
 // When the DOM is ready
-document.addEventListener("DOMContentLoaded", function(event) {
-    var peerId;
-    var userName;
-    var conn;
-
+$( document ).ready(function(event) {
     /**
      * Important: the host needs to be changed according to your requirements.
      * e.g if you want to access the Peer server from another device, the
      * host would be the IP of your host namely 192.xxx.xxx.xx instead
      * of localhost.
      */
-    var peer = new Peer({
-        host: "192.168.1.73",
-        port: 9000,
+    peer = new Peer({
+        host: HOST_IP,
+        port: PEER_PORT,
         path: '/peerjs',
         debug: 1,
         config: {
@@ -38,12 +163,8 @@ document.addEventListener("DOMContentLoaded", function(event) {
     // Once the initialization succeeds:
     // Show the ID that allows other user to connect to your session.
     peer.on('open', function () {
-        count++;
-        var userId = 'test' + count;
-        map['userId'] = peer.id;
-        //document.getElementById("peer-id-label").innerHTML = peer.id;
-        document.getElementById("peer-id-label").innerHTML = userId;
-        console.log('----- userId / peerId: ' + userId + '/' + peer.id);
+        token = peer.id;
+        //console.log('token: ' + token);
     });
 
     // When someone connects to your session:
@@ -51,15 +172,16 @@ document.addEventListener("DOMContentLoaded", function(event) {
     // as the peer of the user that requested the connection.
     peer.on('connection', function (connection) {
         conn = connection;
-        peerId = connection.peer;
+        peerToken = connection.peer;
 
         // Use the handleMessage to callback when a message comes in
         conn.on('data', handleMessage);
 
         // Hide peer_id field and set the incoming peer id as value
-        document.getElementById("peer_id").className += " hidden";
-        document.getElementById("peer_id").value = peerId;
-        document.getElementById("connected_peer").innerHTML = connection.metadata.username;
+        //$('#connected_peer').html(connection.metadata.userId);
+        $('#room').addClass('hidden');
+        $('#chat').removeClass('hidden');
+        console.log('connected.');
     });
 
     peer.on('error', function(err){
@@ -83,6 +205,7 @@ document.addEventListener("DOMContentLoaded", function(event) {
                 window.peer_stream = stream;
                 // Display the stream of the other user in the peer-camera video element !
                 onReceiveStream(stream, 'peer-camera');
+                console.log('video call started.');
             });
 
             // Handle when the call finishes
@@ -91,71 +214,48 @@ document.addEventListener("DOMContentLoaded", function(event) {
             });
 
             // use call.close() to finish a call
-        }else{
+        } else {
             console.log("Call denied.");
         }
     });
 
-    /**
-     * Starts the request of the camera and microphone
-     *
-     * @param {Object} callbacks
-     */
-    function requestLocalVideo(callbacks) {
-        // Monkeypatch for crossbrowser geusermedia
-        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-
-        // Request audio and video
-        navigator.getUserMedia({ audio: false, video: true }, callbacks.success , callbacks.error);
-    }
-
-    /**
-     * Handle the providen stream (video & audio) to the desired video element
-     *
-     * @param {*} stream
-     * @param {*} element_id
-     */
-    function onReceiveStream(stream, element_id) {
-        // Retrieve the video element according to the desired
-        var video = document.getElementById(element_id);
-        // Set the given stream as the video source
-        video.src = window.URL.createObjectURL(stream);
-
-        // Store a global reference of the stream
-        window.peer_stream = stream;
-    }
-
-    /**
-     * Appends the received and sent message to the listview
-     *
-     * @param {Object} data
-     */
-    function handleMessage(data) {
-        var orientation = "text-left";
-
-        // If the message is yours, set text to right !
-        if(data.from == userName){
-            orientation = "text-right"
+    function join() {
+        userId = $('#name').val();
+        if (userId && token) {
+             var dataSend = {userId: userId, token: token};
+             $.ajax({
+                type: "POST",
+                url: "/api/updateusers",
+                data: dataSend,
+                dataType: "json",
+                success: function (res) {
+                    //console.log('saveUser: success.');
+                    updateContactList(function(res) {
+                        $('#login').addClass('hidden');
+                        $('#room').removeClass('hidden');
+                        //$('#chat').removeClass('hidden');
+                        $(jQuery.parseJSON(JSON.stringify(res))).each(function() {  
+                            showRow(userId, this.userId, this.state);
+                        });
+                    });
+                },
+                error: function () {
+                    console.log('saveUser: error.');
+                }
+            });
+        } else {
+            alert("Please enter your nickname.");
+            return false;
         }
-
-        var messageHTML =  '<a href="javascript:void(0);" class="list-group-item' + orientation + '">';
-                messageHTML += '<h4 class="list-group-item-heading">'+ data.from +'</h4>';
-                messageHTML += '<p class="list-group-item-text">'+ data.text +'</p>';
-            messageHTML += '</a>';
-
-        document.getElementById("messages").innerHTML += messageHTML;
     }
 
-    /**
-     * Handle the send message button
-     */
-    document.getElementById("send-message").addEventListener("click", function(){
+    function send() {
         // Message to be sent
-        var text = document.getElementById("message").value;
+        var text = $('#message').val();
 
         // Prepare the data to send
         var data = {
-            from: userName,
+            from: userId,
             text: text
         };
 
@@ -165,53 +265,145 @@ document.addEventListener("DOMContentLoaded", function(event) {
         // Handle the message on UI
         handleMessage(data);
 
-        document.getElementById("message").value = "";
-    }, false);
+        $('#message').val('');
+    }
 
     /**
+     * Handle the send message button
+     */
+    $('#send-btn').click(function() {
+        send();
+    });
+
+    $('#message').on('keypress', function (e) {
+         if(e.which === 13){
+            //Disable textbox to prevent multiple submit
+            $(this).attr("disabled", "disabled");
+            send();
+            //Enable the textbox again if needed.
+            $(this).removeAttr("disabled");
+         }
+    });
+
+    /**
+     * On click the join button, register the user
+     */
+    $('#login-btn').click(function() {
+        join();
+    });
+
+    $('#name').on('keypress', function (e) {
+         if(e.which === 13){
+            //Disable textbox to prevent multiple submit
+            $(this).attr("disabled", "disabled");
+            join();
+            //Enable the textbox again if needed.
+            $(this).removeAttr("disabled");
+         }
+    });
+
+    $('#leave-btn').click(function() {
+        leave(userId);
+        $('#chat').addClass('hidden');
+        $('#login').removeClass('hidden');
+    });
+
+     /**
      *  Request a videocall
      */
-    document.getElementById("call").addEventListener("click", function(){
+    /*$('#call-btn').click(function() {
         console.log('Calling to ' + peerId);
         console.log(peer);
 
-        //var call = peer.call(peer_id, window.localStream);
-        var call = peer.call(getLongPeerId(peerId), window.localStream);
+        var call = peer.call(peerToken, window.localStream);
 
         call.on('stream', function (stream) {
             window.peer_stream = stream;
             onReceiveStream(stream, 'peer-camera');
         });
-    }, false);
 
-    /**
-     * On click the connect button, initialize connection with peer
-     */
-    document.getElementById("connect-to-peer-btn").addEventListener("click", function(){
-        userName = document.getElementById("name").value;
-        peerId = document.getElementById("peer_id").value;
+        $('#video').removeClass('hidden');
+    });*/
+ 
+    /*$('#connect-to-peer-btn').click(function() {  
+        peerId = $('#peer_id').val();      
 
         if (peerId) {
-            /*conn = peer.connect(peer_id, {
-                metadata: {
-                    'username': username
-                }
-            });*/
-            conn = peer.connect(getPeerId(peerId), {
-                metadata: {
-                    'username': userName
-                }
-            });
-
-            conn.on('data', handleMessage);
-        }else{
-            alert("Please provide a peer to connect with.");
+            if (peerToken === undefined || peerToken == null) {
+                getToken(peerId, function(res) {
+                    console.log('peerId/peerToken: ' + peerId + '->' + res);
+                    peerToken = res;
+                    conn = peer.connect(peerToken, {
+                        metadata : { 'userId': userId }
+                    });
+                    conn.on('data', handleMessage);
+                });
+            } else {
+                conn = peer.connect(peerToken, {
+                        metadata : { 'userId': userId }
+                    });
+                conn.on('data', handleMessage);
+            }
+        } else {
+            alert("Please provide a peer to chat with.");
             return false;
         }
 
-        document.getElementById("chat").className = "";
-        document.getElementById("connection-form").className += " hidden";
-    }, false);
+        //$('#finduser').addClass('hidden');
+        //$('#chat').removeClass('hidden');
+    });*/
+
+    /**
+     * Starts the request of the camera and microphone
+     *
+     * @param {Object} callbacks
+     */
+    /*function requestLocalVideo(callbacks) {
+        // Monkeypatch for crossbrowser geusermedia
+        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
+
+        // Request audio and video
+        navigator.getUserMedia({ audio: false, video: true }, callbacks.success , callbacks.error);
+    }*/
+
+    /**
+     * Handle the providen stream (video & audio) to the desired video element
+     *
+     * @param {*} stream
+     * @param {*} element_id
+     */
+    /*function onReceiveStream(stream, element_id) {
+        // Retrieve the video element according to the desired
+        var video = document.getElementById(element_id);
+        // Set the given stream as the video source
+        if (video) {
+            video.src = window.URL.createObjectURL(stream);
+        }
+
+        // Store a global reference of the stream
+        window.peer_stream = stream;
+    }*/
+
+    /**
+     * Appends the received and sent message to the listview
+     *
+     * @param {Object} data
+     */
+    /*function handleMessage(data) {
+        var orientation = "text-left";
+
+        // If the message is yours, set text to right
+        if(data.from == userId) {
+            orientation = "text-right";
+        }
+
+        var messageHTML =  '<a href="javascript:void(0);" class="list-group-item' + orientation + '">';
+            messageHTML += '<h4 class="list-group-item-heading">'+ data.from +'</h4>';
+            messageHTML += '<p class="list-group-item-text">'+ data.text +'</p>';
+            messageHTML += '</a>';
+
+        $('#messages').append(messageHTML);
+    }*/
 
     /**
      * Initialize application by requesting local video.

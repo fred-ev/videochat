@@ -1,10 +1,18 @@
 ============= EV Technologies WebRTC Project =============
 
-v1.0.4 - Refinement, support video chat via separate devices
+1. Install node.js on your computer (https://nodejs.org/en/download/).
 
-v1.0.3 - Added signaling server (node index.js), support peers from cross browsers
+2. Install MongoDB on your computer (https://docs.mongodb.com/manual/installation/).
 
-v1.0.2 - Peer to peer text message exchange
+3. Run the following command under the folder "/server"
 
-v1.0.1 - Simple peer to peer stream video connection
+	npm install
+    
+	node peer-server.js
+
+4. Run the following command under the folder "/public"
+
+	npm install
+    
+	node website-server.js
 

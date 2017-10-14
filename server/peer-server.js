@@ -1,3 +1,4 @@
+var PEER_PORT = 9000;
 // include nodeJS file system module
 var fs = require('fs');
 
@@ -6,7 +7,7 @@ var PeerServer = require('peer').PeerServer;
 
 // peer server uses 9000 port # by default.
 var server = PeerServer({
-    port: 9000,
+    port: PEER_PORT,
     path: '/peerjs',
     ssl: {
         key: fs.readFileSync('./../ssl/key.pem', 'utf8'),

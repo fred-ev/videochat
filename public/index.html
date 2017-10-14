@@ -6,88 +6,76 @@
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>WebRTC V1.0.0</title>
     <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootswatch/3.3.7/cerulean/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/4.7.0/css/font-awesome.min.css">
     <link rel="stylesheet" type="text/css" href="resources/css/style.css">
+    <link rel="stylesheet" type="text/css" href="resources/css/effect.css">
+    <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.2.1/jquery.min.js"></script>
+    <script src="resources/js/modernizr.custom.js"></script>
 </head>
 
 <body>
-    <div class="container">
+    <div class="container-1" id="login">
+        <ul class="wrap-pages">                    
+            <li class="login wrap-page">
+              <div class="form">
+                <h3 class="title">请输入您的昵称:</h3>
+                <div><input class="usernameInput" type="text" name="name" id="name" maxlength="14" /></div>
+                <div class="wrap-btn"><button id="login-btn" name="login-btn" class="btn btn-primary btn-login">登录</button></div>
+              </div>
+            </li>
+        </ul>
+    </div>
+    <div class="container-1 hidden" id="room">
         <div class="row">
-            <div class="col-md-6 col-lg-6">
-                <!-- 
-                    Display video of the current user
-                    Note: mute your own video, otherwise you'll hear yourself.
-                 -->
+            <div class="col-md-12 col-lg-12">
+                <h2 class="text-center">预约医生<h2>
+            </div>
+        </div>
+        <div class="row">
+            <div class="col-md-12 col-lg-12">
+                <div id="messages-container">
+                    <div class="list-group" id="contactlist"></div>
+                </div>
+            </div>
+        </div>
+        <div class="row hint-board">
+            <div class="col-md-12 col-lg-12">
+                <p class="text-center">提示：请在上面列表中选择医生进行预约。绿色按钮表示空闲，红色按钮表示忙碌。</p>
+            </div>
+        </div>
+    </div>
+    <div class="container-1 hidden" id="chat">
+        <div class="row pull-right">
+            <span id="leave-btn" class="cbutton"><i class="fa fa-2x fa-sign-out wrap-leave"></i></span>
+        </div>
+        <div class="row live-chat-stream">
+            <!-- div class="col-md-12 col-lg-12">
                 <div class="text-center">
                     <video id="my-camera"  width="300" height="300" autoplay="autoplay" muted="true" class="center-block"></video>
                     <span class="label label-info">You</span>
                 </div>
-            </div>
-
-            <div class="col-md-6 col-lg-6">
+            </div -->
+            <div class="col-xs-12">
                 <!-- Display video of the connected peer -->
                 <div class="text-center">
-                    <video id="peer-camera" width="300" height="300" autoplay="autoplay" class="center-block"></video>
-                    <span class="label label-info" id="connected_peer"></span>
+                    <video id="peer-camera" autoplay="autoplay" class="center-block"></video>
+                    <!-- span class="label label-info" id="connected_peer"></span -->
                 </div>
             </div>
         </div>
-
+        <div class="row col-md-12 col-lg-12 wrap-msg">            
+            <!-- div class="live-chat"><b>留言板</b></div -->
+            <div id="messages-container">
+                <div class="list-group wrap-msg-scroll" id="messages"></div>
+            </div>           
+        </div>
         <div class="row">
-            <div class="col-md-10 col-lg-10">
-            <h2 class="text-center">Video Chat Demo<h2>
-            <!-- The ID of your current session -->
-            <h4 class="text-center">
-                <span id="peer-id-label"></span>
-            </h4>
-            </div>
-            <div class="col-md-12 col-lg-12">
-                <div class="form-horizontal" id="connection-form">
-                    <fieldset>
-                        <!-- legend>Video Chat Form</legend -->
-                        <div class="form-group">
-                            <label for="name" class="col-lg-2 control-label">Username</label>
-                            <div class="col-lg-6">
-                                <input type="text" class="form-control" name="name" id="name" placeholder="Your random username">
-                            </div>
-                        </div>
-                        <div class="form-group">
-                            <label for="peer_id" class="col-lg-2 control-label">Peer ID</label>
-                            <div class="col-lg-6">
-                                <input type="text" class="form-control" name="peer_id" id="peer_id" placeholder="Peer ID" autocomplete="off" autocorrect="off" autocapitalize="off" spellcheck="false">
-                                
-                                <!-- Show message if someone connected to the client -->
-                                <div id="connected_peer_container" class="hidden">
-                                    A user is already connected to your session. Just provide a name to connect!
-                                </div>
-                            </div>
-                        </div>
-                        <div class="form-group text-center">
-                            <div class="col-lg-10 col-lg-offset-2">
-                                <button id="connect-to-peer-btn" class="btn btn-primary">Let's Chat!</button>
-                            </div>
-                        </div>
-                    </fieldset>
+                <div class="col-xs-10 wrap-msg-line">                    
+                    <input type="text" class="form-control" name="message" id="message" placeholder="留言..."/>
                 </div>
-            </div>
-            <div class="col-md-12 col-lg-12">
-                <div id="chat" class="hidden">
-                    <div id="messages-container">
-                        <div class="list-group" id="messages"></div>
-                    </div>
-                    <div id="message-container">
-                        <div class="form-group">
-                            <label class="control-label">Live chat</label>
-                            <div class="input-group">
-                                <span class="input-group-btn">
-                                    <button id="call" class="btn btn-info">Call</button>
-                                </span>
-                                <input type="text" class="form-control" name="message" id="message" placeholder="Your messag here ...">
-                                <span class="input-group-btn">
-                                    <button id="send-message" class="btn btn-success">Send Message</button>
-                                </span>
-                            </div>
-                        </div>
-                    </div>
+                <div class="col-xs-2">
+                    <span id="send-btn" class="cbutton"><i class="fa fa-2x fa-share-square wrap-msg-line-1"></i>
+                    </span>
                 </div>
             </div>
         </div>
