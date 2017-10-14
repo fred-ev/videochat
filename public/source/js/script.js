@@ -1,9 +1,60 @@
 var HOST_IP = "192.168.1.79";
 var PEER_PORT = 9000;
 
-var userId, peerId, peer,
+var userId, peerId,
     token, peerToken;
-var conn;
+var conn, peer, call;
+
+/**
+ *   Function   : confirmBox
+ *   Description: Customized confirm box
+ *   Arguments  : [IN] title - the title of the confirm box
+ *                [IN] act - action
+ *                [IN] content - message
+ *                [IN] btn1text - button1 (Cancel)
+ *                [IN] btn2text - button2 (Ok)
+ *                [IN] functionText - JQuery UI function to be called
+ *                [IN] parameterList - params passed in (optional)
+ *   Returns    : -
+ *   Comments   : JQuery UI confirm box
+ *
+ */
+function confirmBox(title, act, content, 
+                    btn1text, btn2text, 
+                    functionText, parameterList, callback) {
+    var btn1css = (btn1text == '' ? "hidecss" : "showcss");
+    var btn2css = (btn2text == '' ? "hidecss" : "showcss");
+    $("#lblMessage").html(content);
+
+    $("#dialog").dialog({
+        resizable: false,
+        title: title,
+        modal: true,
+        width: '500px',
+        height: 'auto',
+        bgiframe: false,
+        show: {effect: "blind", duration: 300 },
+        hide: {effect: 'scale', duration: 400 },
+        buttons: [
+            {
+                text: btn1text,
+                "class": btn1css,
+                click: function () {
+                    $("#dialog").dialog('close');
+                    callback(false);
+                }
+            },
+            {
+                text: btn2text,
+                "class": btn2css,
+                click: function () {
+                    $("#dialog").dialog('close');
+                    callback(true);
+                }
+            }
+        ]
+    });
+}
 
 /**
  * Starts the request of the camera and microphone
@@ -44,14 +95,16 @@ function onReceiveStream(stream, element_id) {
 function handleMessage(data) {
     var orientation = "text-left";
     var msgcolor = "msg-color-blue";
+    var backcolor = "msg-board";
 
     // If the message is yours, set text to right
     if(data.from == userId) {
         orientation = "text-right";
         msgcolor = "msg-color-purple";
+        backcolor = "msg-board-color";
     }
 
-    var messageHTML =  '<div class="list-group-item msg-board">';
+    var messageHTML =  '<div class="list-group-item ' + backcolor + '">';
         messageHTML += '<h4 class="list-group-item-heading ' + msgcolor + '">' + data.from +'</h4>';
         messageHTML += '<p class="list-group-item-text">'+ data.text +'</p>';
         messageHTML += '</div><br>';
@@ -60,39 +113,47 @@ function handleMessage(data) {
     $('#messages').scrollTop($('#messages')[0].scrollHeight);
 }
 
-function handleCall(userId, peerId, state) {
+// handle oncoming calls.
+function handleCall(uid, pid, state) {
     //console.log(peerId + '->' + state);
-    if (state === '1' && peerId !== userId) {
-        console.log('Calling to ' + peerId);
-        //if (peerToken === undefined || peerToken == null) {
-        getToken(peerId, function(token) {
-            console.log('peerId/peerToken: ' + peerId + '->' + token);
+    if (state === '1' && pid !== uid) {
+        //peerId = pid;
+        console.log('Calling to ' + pid);
+        getToken(pid, function(token) {
+            console.log('peerId/peerToken: ' + pid + '->' + token);
             conn = peer.connect(token, {
                 metadata : { 'userId': userId }
             });
             conn.on('data', handleMessage);
 
             console.log(peer);
-            var call = peer.call(token, window.localStream);
+            call = peer.call(token, window.localStream);
 
             call.on('stream', function (stream) {
                 window.peer_stream = stream;
                 onReceiveStream(stream, 'peer-camera');
+                $('#room').addClass('hidden');
+                $('#chat').removeClass('hidden');
             });
 
-            $('#room').addClass('hidden');
-            $('#chat').removeClass('hidden');
+            // Handle when the call finishes
+            call.on('close', function(){
+                console.log("Call ended.");                
+                closeChannel(uid, pid);
+            });
         });
     }
 }
 
-function showRow(userId, peerId, state) {
+// show one row of the list
+function showRow(uid, pid, state) {
     var callcolor = (state === '1' ? 'green' : 'red');
-    var listHTML = '<div class="list-board"><span class="cbutton-call" onClick="handleCall(\'' + userId + '\', \'' + peerId + '\', \'' + state + '\')"><i class="fa fa-2x fa-phone-square" style="color:' + callcolor + '"></i></span>';
-        listHTML += '<span class="contact-name">' + peerId + '&nbsp;&nbsp;&#x2729;&#x2729;&#x2729;主任医师</span></div>';
+    var listHTML = '<div class="list-board"><span class="cbutton-call" onClick="handleCall(\'' + uid + '\', \'' + pid + '\', \'' + state + '\')"><i class="fa fa-2x fa-phone-square" style="color:' + callcolor + '"></i></span>';
+        listHTML += '<span class="contact-name">' + pid + '&nbsp;&nbsp;&#x2729;&#x2729;&#x2729;主任医师</span></div>';
     $('#contactlist').append(listHTML);
 }
 
+// update contact list
 function updateContactList(callback) {
     $.ajax({
         type: "GET",
@@ -106,11 +167,11 @@ function updateContactList(callback) {
 }
 
 // get random token by userid
-function getToken(userId, callback) {
+function getToken(uid, callback) {
     //console.log('getToken called.');
     $.ajax({
         type: "GET",
-        url: "/api/users/" + userId,
+        url: "/api/users/" + uid,
         success: function (token) {
             //console.log('getToken: ' + JSON.stringify(token));
             callback(token);
@@ -119,20 +180,74 @@ function getToken(userId, callback) {
     });
 }
 
-// leave chat room
-function leave(userId) {
-    //console.log('leave called.');
-    var dataSend = {userId: userId};
+// get userid by token
+function getUserId(token, callback) {
+    //console.log('getUserId called.');
     $.ajax({
-        type: "POST",
-        url: "/api/leave",
-        dataType: 'json',
-        data: dataSend,
-        success: function (res) {
-            //console.log(userId + ' left.');
+        type: "GET",
+        url: "/api/tokens/" + token,
+        success: function (uid) {
+            //console.log('getUserId: ' + JSON.stringify(uid));
+            callback(uid);
         },
         error: function () {}
     });
+}
+
+// leave chat room
+function leaveRoom(uid) {
+    //console.log('leave called.');
+    if (uid) {
+        var dataSend = {userId: uid};
+        $.ajax({
+            type: "POST",
+            url: "/api/leave",
+            dataType: 'json',
+            data: dataSend,
+            success: function (res) {
+                //console.log(userId + ' left.');
+            },
+            error: function () {}
+        });
+    }
+}
+
+// close chat channel.
+function closeChannel(uid, pid) {
+    //console.log('closeChannel called.');
+    if (uid && pid) {
+        leaveRoom(uid);
+        var dataSend = {userId: pid};
+        $.ajax({
+            type: "POST",
+            url: "/api/close",
+            dataType: 'json',
+            data: dataSend,
+            success: function (res) {
+                //console.log(userId + ' left.');
+            },
+            error: function () {}
+        });
+    }
+}
+
+// open chat channel.
+function openChannel(uid, pid) {
+    //console.log('openChannel called.');
+    console.log('openChannel: userId/peerId: ' + uid + '/' + pid);
+    if (uid && pid) {
+        var dataSend = {userId: uid, peerId: pid};
+        $.ajax({
+            type: "POST",
+            url: "/api/join",
+            dataType: 'json',
+            data: dataSend,
+            success: function (res) {
+                //console.log(userId + ' left.');
+            },
+            error: function () {}
+        });
+    }
 }
 
 // When the DOM is ready
@@ -160,66 +275,81 @@ $( document ).ready(function(event) {
         }
     });
 
-    // Once the initialization succeeds:
-    // Show the ID that allows other user to connect to your session.
+    // once the initialization succeeds:
+    // show the ID that allows other user to connect to your session.
     peer.on('open', function () {
         token = peer.id;
-        //console.log('token: ' + token);
     });
 
-    // When someone connects to your session:
-    // Hide the peer_id field of the connection form and set automatically its value
+    // when someone connects to your session:
+    // hide the peer_id field of the connection form and set automatically its value
     // as the peer of the user that requested the connection.
     peer.on('connection', function (connection) {
         conn = connection;
-        peerToken = connection.peer;
+        //peerToken = connection.peer;
 
-        // Use the handleMessage to callback when a message comes in
+        // use the handleMessage to callback when a message comes in
         conn.on('data', handleMessage);
-
-        // Hide peer_id field and set the incoming peer id as value
-        //$('#connected_peer').html(connection.metadata.userId);
-        $('#room').addClass('hidden');
-        $('#chat').removeClass('hidden');
         console.log('connected.');
+
+        /*getUserId(peerToken, function(uid) {
+            peerId = uid;
+        });*/
     });
 
+    // handle errors
     peer.on('error', function(err){
-        alert("An error ocurred with peer: " + err);
+        //alert("An error ocurred with peer: " + err);
+        var msg = "网络连接错误，请稍后重试。";
+        confirmBox('提示', '1', msg, '', '确认', 'Foo', null, function(res) {});
+
         console.error(err);
+        leaveRoom(userId);
+
+        $('#chat').addClass('hidden');
+        $('#room').addClass('hidden');
+        $('#login').removeClass('hidden');
     });
 
-    /**
-     * Handle the on receive call event
-     */
+    // handle onReceive call event
     peer.on('call', function (call) {
-        var acceptsCall = confirm("Videocall incoming, do you want to accept it?");
+        peerToken = call.peer;        
+        getUserId(peerToken, function(uid) {
+            peerId = uid;
+            //var acceptCall = confirm("Videocall incoming, do you want to accept it?");
+            var msg = peerId + "发出视频邀请，您是否接受？";
+            confirmBox('提示', '1', msg, '取消', '接受', 'Foo', null, function(res) {
+                if (res) {
+                    // answer the call with your own video/audio stream
+                    call.answer(window.localStream);
 
-        if(acceptsCall){
-            // Answer the call with your own video/audio stream
-            call.answer(window.localStream);
+                    // receive data
+                    call.on('stream', function (stream) {
+                        // store a global reference of the other user stream
+                        window.peer_stream = stream;
+                        // display the stream of the other user in the peer-camera video element !
+                        onReceiveStream(stream, 'peer-camera');
+                        console.log('Call started.');
+                    });
 
-            // Receive data
-            call.on('stream', function (stream) {
-                // Store a global reference of the other user stream
-                window.peer_stream = stream;
-                // Display the stream of the other user in the peer-camera video element !
-                onReceiveStream(stream, 'peer-camera');
-                console.log('video call started.');
+                    // Handle when the call finishes
+                    call.on('close', function(){
+                        console.log("Call ended.");
+                        closeChannel(userId, peerId);
+                    });
+
+                    openChannel(userId, peerId);
+                    $('#room').addClass('hidden');
+                    $('#chat').removeClass('hidden');
+                } else {
+                    console.log("Call denied.");
+                }
             });
-
-            // Handle when the call finishes
-            call.on('close', function(){
-                alert("Video call ended.");
-            });
-
-            // use call.close() to finish a call
-        } else {
-            console.log("Call denied.");
-        }
+        });
     });
 
-    function join() {
+    // handle joining the room
+    function joinRoom() {
         userId = $('#name').val();
         if (userId && token) {
              var dataSend = {userId: userId, token: token};
@@ -230,6 +360,7 @@ $( document ).ready(function(event) {
                 dataType: "json",
                 success: function (res) {
                     //console.log('saveUser: success.');
+                    $('#contactlist').html('');
                     updateContactList(function(res) {
                         $('#login').addClass('hidden');
                         $('#room').removeClass('hidden');
@@ -240,181 +371,92 @@ $( document ).ready(function(event) {
                     });
                 },
                 error: function () {
-                    console.log('saveUser: error.');
+                    console.log('joinRoom: error.');
                 }
             });
         } else {
-            alert("Please enter your nickname.");
+            //alert("Please enter your nickname.");
+            var msg = "请输入您的昵称。";
+            confirmBox('提示', '1', msg, '', '确认', 'Foo', null, function(res) {});
             return false;
         }
     }
 
-    function send() {
-        // Message to be sent
+    // handle sending messages
+    function sendMessage() {
+        // message to be sent
         var text = $('#message').val();
 
-        // Prepare the data to send
+        // prepare the data to send
         var data = {
             from: userId,
             text: text
         };
 
-        // Send the message
+        // send the message
         conn.send(data);
 
-        // Handle the message on UI
+        // handle the message on UI
         handleMessage(data);
-
         $('#message').val('');
     }
 
-    /**
-     * Handle the send message button
-     */
+    // handle the send message button
     $('#send-btn').click(function() {
-        send();
+        sendMessage();
     });
 
+    // on keypress when entering message
     $('#message').on('keypress', function (e) {
          if(e.which === 13){
             //Disable textbox to prevent multiple submit
             $(this).attr("disabled", "disabled");
-            send();
+            sendMessage();
             //Enable the textbox again if needed.
             $(this).removeAttr("disabled");
          }
     });
 
-    /**
-     * On click the join button, register the user
-     */
+    // on click the JOIN button, register the user
     $('#login-btn').click(function() {
-        join();
+        joinRoom();
     });
 
+    // on keypress when entering nickname
     $('#name').on('keypress', function (e) {
          if(e.which === 13){
             //Disable textbox to prevent multiple submit
             $(this).attr("disabled", "disabled");
-            join();
+            joinRoom();
             //Enable the textbox again if needed.
             $(this).removeAttr("disabled");
          }
     });
 
+    // on click the LEAVE button
     $('#leave-btn').click(function() {
-        leave(userId);
-        $('#chat').addClass('hidden');
-        $('#login').removeClass('hidden');
-    });
-
-     /**
-     *  Request a videocall
-     */
-    /*$('#call-btn').click(function() {
-        console.log('Calling to ' + peerId);
-        console.log(peer);
-
-        var call = peer.call(peerToken, window.localStream);
-
-        call.on('stream', function (stream) {
-            window.peer_stream = stream;
-            onReceiveStream(stream, 'peer-camera');
-        });
-
-        $('#video').removeClass('hidden');
-    });*/
- 
-    /*$('#connect-to-peer-btn').click(function() {  
-        peerId = $('#peer_id').val();      
-
-        if (peerId) {
-            if (peerToken === undefined || peerToken == null) {
-                getToken(peerId, function(res) {
-                    console.log('peerId/peerToken: ' + peerId + '->' + res);
-                    peerToken = res;
-                    conn = peer.connect(peerToken, {
-                        metadata : { 'userId': userId }
-                    });
-                    conn.on('data', handleMessage);
-                });
+        var msg = "您是否要退出视频聊天？";
+        confirmBox('提示', '', msg, '取消', '确认', 'Foo', null, function(res) {
+            if (res) {
+                closeChannel(userId, peerId);
+                $('#chat').addClass('hidden');
+                $('#login').removeClass('hidden');
             } else {
-                conn = peer.connect(peerToken, {
-                        metadata : { 'userId': userId }
-                    });
-                conn.on('data', handleMessage);
+                // do nothing
             }
-        } else {
-            alert("Please provide a peer to chat with.");
-            return false;
-        }
-
-        //$('#finduser').addClass('hidden');
-        //$('#chat').removeClass('hidden');
-    });*/
-
-    /**
-     * Starts the request of the camera and microphone
-     *
-     * @param {Object} callbacks
-     */
-    /*function requestLocalVideo(callbacks) {
-        // Monkeypatch for crossbrowser geusermedia
-        navigator.getUserMedia = navigator.getUserMedia || navigator.webkitGetUserMedia || navigator.mozGetUserMedia;
-
-        // Request audio and video
-        navigator.getUserMedia({ audio: false, video: true }, callbacks.success , callbacks.error);
-    }*/
-
-    /**
-     * Handle the providen stream (video & audio) to the desired video element
-     *
-     * @param {*} stream
-     * @param {*} element_id
-     */
-    /*function onReceiveStream(stream, element_id) {
-        // Retrieve the video element according to the desired
-        var video = document.getElementById(element_id);
-        // Set the given stream as the video source
-        if (video) {
-            video.src = window.URL.createObjectURL(stream);
-        }
-
-        // Store a global reference of the stream
-        window.peer_stream = stream;
-    }*/
-
-    /**
-     * Appends the received and sent message to the listview
-     *
-     * @param {Object} data
-     */
-    /*function handleMessage(data) {
-        var orientation = "text-left";
-
-        // If the message is yours, set text to right
-        if(data.from == userId) {
-            orientation = "text-right";
-        }
-
-        var messageHTML =  '<a href="javascript:void(0);" class="list-group-item' + orientation + '">';
-            messageHTML += '<h4 class="list-group-item-heading">'+ data.from +'</h4>';
-            messageHTML += '<p class="list-group-item-text">'+ data.text +'</p>';
-            messageHTML += '</a>';
-
-        $('#messages').append(messageHTML);
-    }*/
-
-    /**
-     * Initialize application by requesting local video.
-     */
+        });
+    });
+    
+    // initialize application by requesting local video
     requestLocalVideo({
         success: function(stream){
             window.localStream = stream;
             onReceiveStream(stream, 'my-camera');
         },
         error: function(err){
-            alert("Cannot get access to your camera.");
+            //alert("Cannot get access to your camera.");
+            var msg = "无法连接视频设备, 请稍后重试。";
+            confirmBox('提示', '1', msg, '', '确认', 'Foo', null, function(res) {});
             console.error(err);
         }
     });

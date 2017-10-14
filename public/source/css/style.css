@@ -148,6 +148,11 @@ ul {
   max-width: 85%;
 }
 
+.msg-board-color {
+  max-width: 85%;
+  background-color: #ffe793;
+}
+
 .messages {
   font-size: 150%;
   height: 100%;
@@ -193,7 +198,6 @@ ul {
 }
 
 /* Input */
-
 .inputMessage {
   border: 10px solid #000;
   bottom: 0;
@@ -205,3 +209,7 @@ ul {
   right: 0;
   width: 100%;
 }
+
+/* JQuery confirm box style */
+.showcss{ display:block;}
+.hidecss{ display:none;}

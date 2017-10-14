@@ -29,7 +29,7 @@ var httpsServer = https.createServer(credentials, app);
 var db;
 var MongoClient = require('mongodb').MongoClient;
 
-// get user random token
+// get user random token by userId
 function getToken(userId, callback) {
     db.collection('Users').findOne({'userId': userId}, {'token' : 1}, function(err, res){
         if(err) {
@@ -39,6 +39,20 @@ function getToken(userId, callback) {
             callback(res.token);
         } else {
             console.log('getToken error.');
+        }
+    });
+}
+
+// get userId by token
+function getUserId(token, callback) {
+    db.collection('Users').findOne({'token': token}, {'userId' : 1}, function(err, res){
+        if(err) {
+            console.log(err);
+        } 
+        if (res) {
+            callback(res.userId);
+        } else {
+            console.log('getUserId error.');
         }
     });
 }
@@ -146,6 +160,13 @@ app.get('/api/users/:userId', function(req, res) {
     });
 });
 
+// GET http://x.x.x.x:8443/api/tokens/xxxxxxxx, get userId
+app.get('/api/tokens/:token', function(req, res) {
+    getUserId(req.params.token, function(uid) {
+        res.send(uid);
+    });
+});
+
 // GET http://x.x.x.x:8443/api/userstate, get user state
 app.get('/api/userstate', function(req, res) {
     getState(function(state) {
@@ -172,8 +193,42 @@ app.post('/api/leave', function(req, res) {
         if (res) {
             //console.log(req.body.userId + ' left.');
         } else {
-            console.log('saveUser error.');
-            //res.send("ERROR");
+            console.log('api/leave error.');
+        }
+    });
+});
+
+// POST http://x.x.x.x:8443/api/close, parameters sent with 
+app.post('/api/close', function(req, res) {
+    db.collection('Users').updateOne(
+        { "userId" : req.body.userId },
+        { $set: { "state" : '1'} }, function(err, res){
+        
+        if(err) {
+            console.log(err);
+        } 
+        if (res) {
+            //console.log(req.body.userId + ' left.');
+        } else {
+            console.log('api/close error.');
+        }
+    });
+});
+
+// POST http://x.x.x.x:8443/api/join, parameters sent with 
+app.post('/api/join', function(req, res) {
+    db.collection('Users').updateMany(
+        //{ "userId" : req.body.userId },
+        { "userId" : { $in : [req.body.userId, req.body.peerId] } },
+        { $set: { "state" : '2'} }, function(err, res) {
+        
+        if(err) {
+            console.log(err);
+        } 
+        if (res) {
+            //console.log(req.body.userId + ' left.');
+        } else {
+            console.log('api/join error.');
         }
     });
 });
