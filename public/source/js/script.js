@@ -1,9 +1,10 @@
-var HOST_IP = "192.168.1.79";
+var HOST_IP = "192.168.0.12";
+//var HOST_IP = "54.183.234.32";
 var PEER_PORT = 9000;
 
 var userId, peerId,
     token, peerToken;
-var conn, peer, call;
+var conn, peer;
 
 /**
  *   Function   : confirmBox
@@ -19,11 +20,10 @@ var conn, peer, call;
  *   Comments   : JQuery UI confirm box
  *
  */
-function confirmBox(title, act, content, 
-                    btn1text, btn2text, 
-                    functionText, parameterList, callback) {
-    var btn1css = (btn1text == '' ? "hidecss" : "showcss");
-    var btn2css = (btn2text == '' ? "hidecss" : "showcss");
+function confirmBox(title, act, content, btn1text, btn2text, 
+    functionText, parameterList, callback) {
+    var btn1css = (btn1text === '' ? "hidecss" : "showcss");
+    var btn2css = (btn2text === '' ? "hidecss" : "showcss");
     $("#lblMessage").html(content);
 
     $("#dialog").dialog({
@@ -53,6 +53,56 @@ function confirmBox(title, act, content,
                 }
             }
         ]
+    });
+}
+
+function singleConfirmBox(title, act, content, btntext, 
+    functionText, parameterList, callback) {
+    var btncss = (btntext === '' ? "hidecss" : "showcss");
+    $("#lblMessage").html(content);
+
+    $("#dialog").dialog({
+        resizable: false,
+        title: title,
+        modal: true,
+        width: '500px',
+        height: 'auto',
+        bgiframe: false,
+        show: {effect: "blind", duration: 300 },
+        hide: {effect: 'scale', duration: 400 },
+        buttons: [
+            {
+                text: btntext,
+                "class": btncss,
+                click: function () {
+                    $("#dialog").dialog('close');
+                    callback(true);
+                }
+            }            
+        ]
+    });
+}
+
+function showHint(title, act, content, functionText, parameterList, callback) {
+    $("#lblMessage-1").html(content);
+
+    $("#dialog-1").dialog({
+        resizable: false,
+        closeOnEscape: false,
+        title: title,
+        modal: true,
+        width: '500px',
+        height: 'auto',
+        bgiframe: false,
+        show: {effect: "blind", duration: 300 },
+        hide: {effect: 'scale', duration: 400 },
+        open: function(e, ui) {
+            var foo = $(this);
+            setTimeout(function() {
+               foo.dialog('close');
+            }, 3000);
+            $(".ui-dialog-titlebar-close").hide();
+        }         
     });
 }
 
@@ -93,6 +143,28 @@ function onReceiveStream(stream, element_id) {
  * @param {Object} data
  */
 function handleMessage(data) {
+    if (data.text == '#QUIT#') {
+        console.log(data.from + ' left.');
+        if (userId !== data.from) {
+            var msg = data.from + "退出了视频聊天。";
+            singleConfirmBox('提示', '1', msg, '确认', 'Foo', null, function(r) {
+                //console.log('quit.');
+                updateContactList(function(res) {
+                    //console.log('quit-00.');
+                    $('#chat').addClass('hidden');
+                    $('#room').removeClass('hidden');
+                   //console.log(JSON.stringify(res));
+                    $(jQuery.parseJSON(JSON.stringify(res))).each(function() {
+                        if (userId != this.userId) {
+                            showRow(userId, this.userId, this.state);
+                        }
+                    });
+                });
+            });
+        }
+        return;
+    }
+
     var orientation = "text-left";
     var msgcolor = "msg-color-blue";
     var backcolor = "msg-board";
@@ -117,7 +189,6 @@ function handleMessage(data) {
 function handleCall(uid, pid, state) {
     //console.log(peerId + '->' + state);
     if (state === '1' && pid !== uid) {
-        //peerId = pid;
         console.log('Calling to ' + pid);
         getToken(pid, function(token) {
             console.log('peerId/peerToken: ' + pid + '->' + token);
@@ -127,20 +198,23 @@ function handleCall(uid, pid, state) {
             conn.on('data', handleMessage);
 
             console.log(peer);
-            call = peer.call(token, window.localStream);
+            var call = peer.call(token, window.localStream);
 
             call.on('stream', function (stream) {
                 window.peer_stream = stream;
                 onReceiveStream(stream, 'peer-camera');
+                console.log("handleCall: call started.");
                 $('#room').addClass('hidden');
                 $('#chat').removeClass('hidden');
             });
 
             // Handle when the call finishes
             call.on('close', function(){
-                console.log("Call ended.");                
+                console.log("handleCall: call ended.");               
                 closeChannel(uid, pid);
             });
+            var msg = "您已向" + pid + "发出视频邀请，请等待回应...";
+            showHint('提示', '1', msg, 'Foo', null, function(res) {});
         });
     }
 }
@@ -155,10 +229,11 @@ function showRow(uid, pid, state) {
 
 // update contact list
 function updateContactList(callback) {
+    $('#contactlist').html('');
     $.ajax({
         type: "GET",
         url: '/api/userstate',
-        dataType: "json",
+        async: false,
         success: function (res) {
             callback(res);
         },
@@ -281,6 +356,11 @@ $( document ).ready(function(event) {
         token = peer.id;
     });
 
+    peer.on('close', function () {
+        conn = null;
+        peer = null;
+    });
+
     // when someone connects to your session:
     // hide the peer_id field of the connection form and set automatically its value
     // as the peer of the user that requested the connection.
@@ -291,20 +371,16 @@ $( document ).ready(function(event) {
         // use the handleMessage to callback when a message comes in
         conn.on('data', handleMessage);
         console.log('connected.');
-
-        /*getUserId(peerToken, function(uid) {
-            peerId = uid;
-        });*/
     });
 
     // handle errors
     peer.on('error', function(err){
         //alert("An error ocurred with peer: " + err);
         var msg = "网络连接错误，请稍后重试。";
-        confirmBox('提示', '1', msg, '', '确认', 'Foo', null, function(res) {});
-
-        console.error(err);
+        singleConfirmBox('提示', '1', msg, '确认', 'Foo', null, function(res) {});
+        
         leaveRoom(userId);
+        console.error(err);
 
         $('#chat').addClass('hidden');
         $('#room').addClass('hidden');
@@ -314,8 +390,8 @@ $( document ).ready(function(event) {
     // handle onReceive call event
     peer.on('call', function (call) {
         peerToken = call.peer;        
-        getUserId(peerToken, function(uid) {
-            peerId = uid;
+        getUserId(peerToken, function(pid) {
+            peerId = pid;
             //var acceptCall = confirm("Videocall incoming, do you want to accept it?");
             var msg = peerId + "发出视频邀请，您是否接受？";
             confirmBox('提示', '1', msg, '取消', '接受', 'Foo', null, function(res) {
@@ -327,14 +403,14 @@ $( document ).ready(function(event) {
                     call.on('stream', function (stream) {
                         // store a global reference of the other user stream
                         window.peer_stream = stream;
-                        // display the stream of the other user in the peer-camera video element !
+                        // display the stream of the other user in the peer-camera video element
                         onReceiveStream(stream, 'peer-camera');
-                        console.log('Call started.');
+                        console.log('onCall: call started.');
                     });
 
-                    // Handle when the call finishes
+                    // Handle when the call ends
                     call.on('close', function(){
-                        console.log("Call ended.");
+                        console.log("onCall: call ended.");
                         closeChannel(userId, peerId);
                     });
 
@@ -342,7 +418,7 @@ $( document ).ready(function(event) {
                     $('#room').addClass('hidden');
                     $('#chat').removeClass('hidden');
                 } else {
-                    console.log("Call denied.");
+                    console.log("onCall: call denied.");
                 }
             });
         });
@@ -360,13 +436,13 @@ $( document ).ready(function(event) {
                 dataType: "json",
                 success: function (res) {
                     //console.log('saveUser: success.');
-                    $('#contactlist').html('');
                     updateContactList(function(res) {
                         $('#login').addClass('hidden');
                         $('#room').removeClass('hidden');
-                        //$('#chat').removeClass('hidden');
-                        $(jQuery.parseJSON(JSON.stringify(res))).each(function() {  
-                            showRow(userId, this.userId, this.state);
+                        $(jQuery.parseJSON(JSON.stringify(res))).each(function() {
+                            if (userId != this.userId) {
+                                showRow(userId, this.userId, this.state);
+                            }
                         });
                     });
                 },
@@ -377,7 +453,7 @@ $( document ).ready(function(event) {
         } else {
             //alert("Please enter your nickname.");
             var msg = "请输入您的昵称。";
-            confirmBox('提示', '1', msg, '', '确认', 'Foo', null, function(res) {});
+            singleConfirmBox('提示', '1', msg, '确认', 'Foo', null, function(res) {});
             return false;
         }
     }
@@ -399,6 +475,22 @@ $( document ).ready(function(event) {
         // handle the message on UI
         handleMessage(data);
         $('#message').val('');
+    }
+
+    // close the channel
+    function closeMessage(uid) {
+        //console.log('closeMessage: ' + uid);
+        // prepare the data to send
+        var data = {
+            from: uid,
+            text: '#QUIT#'
+        };
+
+        // send the message
+        conn.send(data);
+
+        // handle close message
+        handleMessage(data);
     }
 
     // handle the send message button
@@ -438,7 +530,9 @@ $( document ).ready(function(event) {
         var msg = "您是否要退出视频聊天？";
         confirmBox('提示', '', msg, '取消', '确认', 'Foo', null, function(res) {
             if (res) {
+                console.log("Call ended.");
                 closeChannel(userId, peerId);
+                closeMessage(userId);
                 $('#chat').addClass('hidden');
                 $('#login').removeClass('hidden');
             } else {
@@ -446,6 +540,17 @@ $( document ).ready(function(event) {
             }
         });
     });
+
+    window.onbeforeunload = function(e) {
+        if (e) {
+            var msg = "您是否要退出聊天系统？";
+            confirmBox('提示', '', msg, '取消', '确认', 'Foo', null, function(res) {
+                if (res) {
+                    closeChannel(userId, peerId);
+                }
+            });
+        }
+    };
     
     // initialize application by requesting local video
     requestLocalVideo({
@@ -456,7 +561,7 @@ $( document ).ready(function(event) {
         error: function(err){
             //alert("Cannot get access to your camera.");
             var msg = "无法连接视频设备, 请稍后重试。";
-            confirmBox('提示', '1', msg, '', '确认', 'Foo', null, function(res) {});
+            singleConfirmBox('提示', '1', msg, '确认', 'Foo', null, function(res) {});
             console.error(err);
         }
     });
